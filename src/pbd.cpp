@@ -31,10 +31,19 @@ void PBDSolver::initialize()
     m_neighbors.assign(m_particles.size(), std::vector<unsigned int>());
     float initialThickness = 0.05f;
 
-    // [수정] 모든 정점의 baseArea를 1.0f로 두지 않고, 실제 초기 삼각형 면적으로 계산합니다.
     for (size_t i = 0; i < m_particles.size(); ++i) {
-        m_particles[i].thickness = initialThickness;
-        m_particles[i].prevThickness = initialThickness;
+        glm::vec3 p = m_particles[i].position;
+
+        // 공간 좌표를 기반으로 사인파 노이즈를 섞어 두께를 다르게 만듭니다.
+        float seed = std::sin(9.0f * p.x + 3.0f * p.y) +
+            0.6f * std::sin(11.0f * p.z - 4.0f * p.x) +
+            0.35f * std::sin(17.0f * (p.x + p.y + p.z));
+
+        // 기본 두께 0.05에 노이즈를 더해 0.04 ~ 0.06 사이의 굴곡진 두께 형성
+        float noiseThickness = 0.05f + 0.01f * seed;
+
+        m_particles[i].thickness = noiseThickness;
+        m_particles[i].prevThickness = noiseThickness;
         m_particles[i].thicknessVelocity = 0.0f;
         m_particles[i].baseArea = 0.0f;
     }
@@ -280,25 +289,15 @@ void PBDSolver::applyToMesh()
     if (!m_mesh) return;
     size_t n = std::min(m_particles.size(), m_mesh->vertices.size());
 
-    float baseT = 0.05f;
-
     for (size_t i = 0; i < n; ++i) {
+        // 1. 위치 업데이트
         m_mesh->vertices[i].Position = m_particles[i].position;
 
-        // 두께 변화량(0.048 ~ 0.052)을 시각적으로 유의미한 나노미터 단위(300nm ~ 700nm)로 매핑
-        float mappedNm = 500.0f + (m_particles[i].thickness - baseT) * 100000.0f;
+        // 2. 가짜 RGB 계산 로직 제거, 순수 두께 값만 Vertex Attribute로 전달
+        m_mesh->vertices[i].Thickness = m_particles[i].thickness;
 
-        // 위상차 연산 (주기: ~100nm)
-        float phase = fmod(mappedNm / 100.0f, 1.0f) * 2.0f * glm::pi<float>();
-
-        // 120도(2.094 rad), 240도(4.189 rad) 위상차를 둔 RGB 스펙트럼 근사
-        glm::vec3 color = glm::vec3(
-            0.5f + 0.5f * sin(phase),
-            0.5f + 0.5f * sin(phase + 2.094f),
-            0.5f + 0.5f * sin(phase + 4.189f)
-        );
-
-        m_mesh->vertices[i].Color = color;
+        // (선택) 디버깅용이 아니라면 Color는 기본값(흰색)으로 두거나 셰이더에서 무시하면 됩니다.
+        // m_mesh->vertices[i].Color = glm::vec3(1.0f); 
     }
 
     recomputeNormals();

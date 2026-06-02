@@ -21,8 +21,106 @@
 #include "math_utils.h"
 #include "light.h"
 #include "pbd.h"
+#include <map>
+#include <cmath>
 
-Mesh createHighResolutionSphereMesh(unsigned int rings, unsigned int segments);
+struct Edge {
+    unsigned int v1, v2;
+    Edge(unsigned int a, unsigned int b) {
+        v1 = std::min(a, b);
+        v2 = std::max(a, b);
+    }
+    bool operator<(const Edge& other) const {
+        if (v1 != other.v1) return v1 < other.v1;
+        return v2 < other.v2;
+    }
+};
+
+Mesh createIcosphereMesh(unsigned int subdivisions)
+{
+    std::vector<Vertex> vertices;
+    std::vector<unsigned int> indices;
+
+    // 1. 초기 정이십면체(Icosahedron) 생성
+    const float t = (1.0f + std::sqrt(5.0f)) / 2.0f; // 황금비
+
+    std::vector<glm::vec3> baseVertices = {
+        {-1,  t,  0}, { 1,  t,  0}, {-1, -t,  0}, { 1, -t,  0},
+        { 0, -1,  t}, { 0,  1,  t}, { 0, -1, -t}, { 0,  1, -t},
+        { t,  0, -1}, { t,  0,  1}, {-t,  0, -1}, {-t,  0,  1}
+    };
+
+    auto addVertex = [&](glm::vec3 p) -> unsigned int {
+        Vertex v;
+        v.Position = glm::normalize(p);
+        v.Normal = v.Position;
+
+        // 구면 좌표계를 이용한 기본 UV
+        float u = 0.5f + std::atan2(v.Position.z, v.Position.x) / (2.0f * glm::pi<float>());
+        float v_tex = 0.5f - std::asin(v.Position.y) / glm::pi<float>();
+        v.TexCoords = glm::vec2(u, v_tex);
+
+        // 극점 처리(Gimbal lock 방지)를 포함한 탄젠트 벡터 계산
+        glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+        if (std::abs(v.Normal.y) > 0.999f) up = glm::vec3(1.0f, 0.0f, 0.0f);
+        v.Tangent = glm::normalize(glm::cross(up, v.Normal));
+
+        v.Color = glm::vec3(1.0f);
+        v.Thickness = 0.05f; // 초기 두께 세팅
+        vertices.push_back(v);
+        return vertices.size() - 1;
+        };
+
+    for (const auto& p : baseVertices) {
+        addVertex(p);
+    }
+
+    indices = {
+        0, 11, 5,  0, 5, 1,  0, 1, 7,  0, 7, 10,  0, 10, 11,
+        1, 5, 9,  5, 11, 4,  11, 10, 2,  10, 7, 6,  7, 1, 8,
+        3, 9, 4,  3, 4, 2,  3, 2, 6,  3, 6, 8,  3, 8, 9,
+        4, 9, 5,  2, 4, 11,  6, 2, 10,  8, 6, 7,  9, 8, 1
+    };
+
+    // 2. 표면 분할(Subdivision) 및 중복 정점 병합(Welding)
+    std::map<Edge, unsigned int> midPointCache;
+
+    auto getMidPoint = [&](unsigned int v1, unsigned int v2) -> unsigned int {
+        Edge edge(v1, v2);
+        // 이미 계산된 중간점이 있으면 캐시에서 반환 (완벽한 구조적 공유)
+        if (midPointCache.find(edge) != midPointCache.end()) {
+            return midPointCache[edge];
+        }
+        glm::vec3 mid = (vertices[v1].Position + vertices[v2].Position) * 0.5f;
+        unsigned int index = addVertex(mid);
+        midPointCache[edge] = index;
+        return index;
+        };
+
+    for (unsigned int i = 0; i < subdivisions; ++i) {
+        std::vector<unsigned int> newIndices;
+        midPointCache.clear();
+
+        for (size_t j = 0; j < indices.size(); j += 3) {
+            unsigned int v1 = indices[j];
+            unsigned int v2 = indices[j + 1];
+            unsigned int v3 = indices[j + 2];
+
+            unsigned int a = getMidPoint(v1, v2);
+            unsigned int b = getMidPoint(v2, v3);
+            unsigned int c = getMidPoint(v3, v1);
+
+            newIndices.push_back(v1); newIndices.push_back(a); newIndices.push_back(c);
+            newIndices.push_back(v2); newIndices.push_back(b); newIndices.push_back(a);
+            newIndices.push_back(v3); newIndices.push_back(c); newIndices.push_back(b);
+            newIndices.push_back(a);  newIndices.push_back(b); newIndices.push_back(c);
+        }
+        indices = newIndices;
+    }
+
+    return Mesh(vertices, indices);
+}
+
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
@@ -48,7 +146,7 @@ bool firstMouse = true;
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
 
-bool useNormalMap = false;
+bool useNormalMap = true;
 bool useSpecular = true;
 bool useShadow = false;
 bool useLighting = true;
@@ -110,14 +208,17 @@ int main()
     Shader skyboxShader("../shaders/shader_skybox.vs", "../shaders/shader_skybox.fs");
     Shader wireframeShader("../shaders/wireframe.vs", "../shaders/wireframe.fs");
 
+    Model yourOwnModel;
+    yourOwnModel.mesh = createIcosphereMesh(2);
+    yourOwnModel.diffuse = nullptr;
+    yourOwnModel.normal = nullptr;
+    yourOwnModel.specular = nullptr;
 
-    Model yourOwnModel = Model("../resources/myobj/sphere2.obj");
-    //yourOwnModel.mesh = createHighResolutionSphereMesh(64, 128);
-    yourOwnModel.VAO = yourOwnModel.mesh.VAO; 
-    PBDSolver* spherePBD = nullptr;
-    spherePBD = new PBDSolver(&yourOwnModel.mesh);
+    yourOwnModel.VAO = yourOwnModel.mesh.VAO;
+    yourOwnModel.mesh.setupMesh(); // 꼭 호출해서 버퍼를 GPU에 묶어주어야 합니다.
+
+    PBDSolver* spherePBD = new PBDSolver(&yourOwnModel.mesh);
     spherePBD->initialize();
-
 
 
 
@@ -369,59 +470,7 @@ int main()
     return 0;
 }
 
-Mesh createHighResolutionSphereMesh(unsigned int rings, unsigned int segments)
-{
-    std::vector<Vertex> vertices;
-    std::vector<unsigned int> indices;
-    vertices.reserve((rings + 1) * (segments + 1));
-    indices.reserve(rings * segments * 6);
 
-    for (unsigned int y = 0; y <= rings; ++y) {
-        float v = static_cast<float>(y) / static_cast<float>(rings);
-        float theta = v * glm::pi<float>();
-        float sinTheta = std::sin(theta);
-        float cosTheta = std::cos(theta);
-
-        for (unsigned int x = 0; x <= segments; ++x) {
-            float u = static_cast<float>(x) / static_cast<float>(segments);
-            float phi = u * glm::two_pi<float>();
-
-            glm::vec3 position(
-                sinTheta * std::cos(phi),
-                cosTheta,
-                sinTheta * std::sin(phi)
-            );
-
-            Vertex vertex;
-            vertex.Position = position;
-            vertex.Normal = glm::normalize(position);
-            vertex.TexCoords = glm::vec2(u, v);
-            vertex.Tangent = glm::normalize(glm::vec3(-std::sin(phi), 0.0f, std::cos(phi)));
-            vertex.Color = glm::vec3(1.0f);
-            vertex.Thickness = 0.05f;
-            vertices.push_back(vertex);
-        }
-    }
-
-    for (unsigned int y = 0; y < rings; ++y) {
-        for (unsigned int x = 0; x < segments; ++x) {
-            unsigned int i0 = y * (segments + 1) + x;
-            unsigned int i1 = i0 + 1;
-            unsigned int i2 = (y + 1) * (segments + 1) + x;
-            unsigned int i3 = i2 + 1;
-
-            indices.push_back(i0);
-            indices.push_back(i2);
-            indices.push_back(i1);
-
-            indices.push_back(i1);
-            indices.push_back(i2);
-            indices.push_back(i3);
-        }
-    }
-
-    return Mesh(vertices, indices);
-}
 
 // process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
 // ---------------------------------------------------------------------------------------------------------

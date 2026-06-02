@@ -57,7 +57,7 @@ public:
         glBindBuffer(GL_ARRAY_BUFFER, 0);
     }
 
-private:
+
     /*  Render data  */
     unsigned int VBO, EBO;
 
