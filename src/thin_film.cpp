@@ -72,7 +72,7 @@ void ThinFilmSimulator::initialize(Mesh* mesh, float initialThickness)
             std::sin(9.0f * p.x + 3.0f * p.y) +
             0.6f * std::sin(11.0f * p.z - 4.0f * p.x) +
             0.35f * std::sin(17.0f * (p.x + p.y + p.z));
-        m_h[i] = clampFloat(initialThickness + 0.006f * seed, m_minThickness, m_maxThickness);
+        m_h[i] = clampFloat(initialThickness + 0.025f * seed, m_minThickness, m_maxThickness);
         m_vh[i] = 0.025f * std::sin(13.0f * p.y + 5.0f * p.z);
     }
 
@@ -224,8 +224,11 @@ void ThinFilmSimulator::applyToMesh()
 
     const size_t count = std::min(m_h.size(), m_mesh->vertices.size());
     for (size_t i = 0; i < count; ++i) {
-        m_mesh->vertices[i].Thickness = m_h[i];
-        m_mesh->vertices[i].Color = falseColor(m_h[i]);
+        // 물리적 두께만 셰이더로 전달 (Fragment Shader에서 LUT 연산에 사용)
+        m_mesh->vertices[i].Thickness = m_h[i]; 
+        
+        // 가짜 색상 덮어쓰기 방지 (흰색으로 고정하거나 셰이더에서 무시하도록 처리)
+        m_mesh->vertices[i].Color = glm::vec3(1.0f); 
     }
 }
 

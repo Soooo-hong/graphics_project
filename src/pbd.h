@@ -1,64 +1,43 @@
 ﻿#pragma once
-
 #include "mesh.h"
-#include <glm/glm.hpp>
 #include <vector>
+#include <glm/glm.hpp>
 
 struct PBDParticle {
     glm::vec3 position;
     glm::vec3 prevPosition;
     glm::vec3 acceleration;
     float invMass;
-
     float thickness;
     float prevThickness;
     float thicknessVelocity;
-    float baseArea;
 };
 
-struct PBDConstraint {
+struct PBDEdge {
     unsigned int a, b;
     float restLength;
-};
-
-struct CotWeight {
-    unsigned int j;
-    float w;
 };
 
 class PBDSolver {
 public:
     PBDSolver(Mesh* mesh);
-
     void initialize();
-
-    void step(float dt, int solverIterations, const glm::vec3& gravity, float damping);
-
+    void step(float dt, int solverIterations, const glm::vec3& gravity = glm::vec3(0.0f), float damping = 0.015f);
     void applyToMesh();
-
     void addImpulse(unsigned int particleIdx, const glm::vec3& velocity);
-
-    std::vector<PBDParticle>& particles() { return m_particles; }
-    std::vector<PBDConstraint>& constraints() { return m_constraints; }
-
-    void solveThicknessConstraints(const std::vector<float>& currentAreas); // ���� Ȯ��
 
 private:
     Mesh* m_mesh;
     std::vector<PBDParticle> m_particles;
-    std::vector<PBDConstraint> m_constraints;
+    std::vector<PBDEdge> m_edges;
 
-    std::vector<std::vector<unsigned int>> m_neighbors;
-    float m_initialTotalVolume;
+    float m_initialVolume;
 
-    void buildConstraintsFromTriangles();
+    void buildConstraints();
     void integrate(float dt, float damping);
     void solveConstraints(int iterations);
     void recomputeNormals();
-
     void integrateThickness(float dt);
 
-    std::vector<std::vector<CotWeight>> m_cotWeights;
-    void computeCotangentWeights();
-
+    float computeMeshVolume();
 };

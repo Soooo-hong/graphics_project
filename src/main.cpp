@@ -130,8 +130,8 @@ bool isWindowed = true;
 bool isKeyboardDone[1024] = { 0 };
 
 // setting
-const unsigned int SCR_WIDTH = 800;
-const unsigned int SCR_HEIGHT = 600;
+const unsigned int SCR_WIDTH = 1600;
+const unsigned int SCR_HEIGHT = 1200;
 const unsigned int SHADOW_WIDTH = 1024;
 const unsigned int SHADOW_HEIGHT = 1024;
 const float planeSize = 15.f;
@@ -154,11 +154,8 @@ bool useLighting = true;
 bool usePCF = false;
 bool showWireframe = false;
 
-float pbdStretchStiffness = 0.85f;
-float pbdBendStiffness = 0.15f;
-float pbdDamping = 0.015f;
+float pbdDamping = 0.0001f;
 int pbdSolverIterations = 2;
-unsigned int thicknessDisturbanceVertex = 1000;
 
 
 int main()
@@ -209,7 +206,7 @@ int main()
     Shader wireframeShader("../shaders/wireframe.vs", "../shaders/wireframe.fs");
 
     Model yourOwnModel;
-    yourOwnModel.mesh = createIcosphereMesh(2);
+    yourOwnModel.mesh = createIcosphereMesh(4);
     yourOwnModel.diffuse = nullptr;
     yourOwnModel.normal = nullptr;
     yourOwnModel.specular = nullptr;
@@ -276,7 +273,7 @@ int main()
     while (!glfwWindowShouldClose(window))
     {
         if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
-            spherePBD->addImpulse(1000, glm::vec3(5.0f, 2.0f, 0.0f));
+            spherePBD->addImpulse(10, glm::vec3(5.0f, 2.0f, 0.0f));
         }
 
         float currentTime = glfwGetTime();
@@ -402,16 +399,16 @@ int main()
         lightingShader.setFloat("useNormalMap", 0.0f);
         lightingShader.setFloat("useSpecularMap", 0.0f);
         lightingShader.setFloat("useShadow", 0.0f);
-        lightingShader.setFloat("filmThicknessScale", 9000.0f);
+        lightingShader.setFloat("filmThicknessScale", 10000.0f);
         lightingShader.setFloat("filmRefractiveIndex", 1.34f);
-        lightingShader.setFloat("filmAlpha", 0.18f);
+        lightingShader.setFloat("filmAlpha", 0.1f);
         lightingShader.setFloat("filmR0", 0.025f);
-        lightingShader.setFloat("filmDeltaMax", 1200.0f);
-        lightingShader.setFloat("filmIridescenceStrength", 2.25f);
-        lightingShader.setFloat("filmRefractionStrength", 0.82f);
+        lightingShader.setFloat("filmDeltaMax", 1500.0f);
+        lightingShader.setFloat("filmIridescenceStrength", 1.1f);
+        lightingShader.setFloat("filmRefractionStrength", 0.8f);
         lightingShader.setFloat("filmFresnelStrength", 1.0f);
-        lightingShader.setFloat("filmReflectionIntensity", 0.85f);
-        lightingShader.setFloat("filmRoughness", 0.16f);
+        lightingShader.setFloat("filmReflectionIntensity", 1.0f);
+        lightingShader.setFloat("filmRoughness", 0.01f);
 
         glActiveTexture(GL_TEXTURE4);
         glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxTexture.textureID);
@@ -439,9 +436,12 @@ int main()
             glDisable(GL_CULL_FACE);
             glLineWidth(1.0f);
 
+            // 스카이박스에서 유실된 카메라 뷰 행렬을 다시 온전하게 받아옵니다.
+            view = camera.GetViewMatrix();
+
             wireframeShader.use();
             wireframeShader.setMat4("projection", projection);
-            wireframeShader.setMat4("view", view);
+            wireframeShader.setMat4("view", view); // 정상적인 뷰 행렬 적용
 
             auto itSphere = scene.entities.find(&yourOwnModel);
             if (itSphere != scene.entities.end()) {
@@ -494,33 +494,6 @@ void processInput(GLFWwindow* window, DirectionalLight* sun)
     }
     if (glfwGetKey(window, GLFW_KEY_F) == GLFW_RELEASE) {
         isKeyboardDone[GLFW_KEY_F] = false;
-    }
-
-    if (glfwGetKey(window, GLFW_KEY_LEFT_BRACKET) == GLFW_PRESS) {
-        pbdStretchStiffness = MAX(0.0f, pbdStretchStiffness - deltaTime);
-    }
-    if (glfwGetKey(window, GLFW_KEY_RIGHT_BRACKET) == GLFW_PRESS) {
-        pbdStretchStiffness = MIN(1.0f, pbdStretchStiffness + deltaTime);
-    }
-    if (glfwGetKey(window, GLFW_KEY_SEMICOLON) == GLFW_PRESS) {
-        pbdDamping = MAX(0.0f, pbdDamping - 0.25f * deltaTime);
-    }
-    if (glfwGetKey(window, GLFW_KEY_APOSTROPHE) == GLFW_PRESS) {
-        pbdDamping = MIN(0.2f, pbdDamping + 0.25f * deltaTime);
-    }
-    if (glfwGetKey(window, GLFW_KEY_COMMA) == GLFW_PRESS && !isKeyboardDone[GLFW_KEY_COMMA]) {
-        pbdSolverIterations = MAX(1, pbdSolverIterations - 1);
-        isKeyboardDone[GLFW_KEY_COMMA] = true;
-    }
-    if (glfwGetKey(window, GLFW_KEY_COMMA) == GLFW_RELEASE) {
-        isKeyboardDone[GLFW_KEY_COMMA] = false;
-    }
-    if (glfwGetKey(window, GLFW_KEY_PERIOD) == GLFW_PRESS && !isKeyboardDone[GLFW_KEY_PERIOD]) {
-        pbdSolverIterations = MIN(64, pbdSolverIterations + 1);
-        isKeyboardDone[GLFW_KEY_PERIOD] = true;
-    }
-    if (glfwGetKey(window, GLFW_KEY_PERIOD) == GLFW_RELEASE) {
-        isKeyboardDone[GLFW_KEY_PERIOD] = false;
     }
 
     float t = 20.0f * deltaTime;

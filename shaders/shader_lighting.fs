@@ -93,11 +93,12 @@ float opticalPathDifference(float h, float cosTheta, float n)
     return 2.0 * n * h * refracted;
 }
 
-vec3 sampleThinFilmLUT(float deltaNm, float cosTheta)
+vec3 sampleThinFilmLUT(float hNm, float cosTheta)
 {
-    vec2 uv = vec2(clamp(deltaNm / filmDeltaMax, 0.0, 1.0), clamp(cosTheta, 0.0, 1.0));
+    // U 좌표에 deltaNm 대신 두께(hNm)를 직접 사용합니다.
+    vec2 uv = vec2(clamp(hNm / filmDeltaMax, 0.0, 1.0), clamp(cosTheta, 0.0, 1.0));
     vec3 lutColor = texture(thinFilmLUT, uv).rgb;
-    return lutColor * lutColor;
+    return lutColor;
 }
 
 float continuousFilmThickness(float h, vec3 normal, vec3 worldPos)
@@ -193,7 +194,7 @@ void main()
         float opticalThickness = continuousFilmThickness(FilmThickness, normal, FragPos);
         float hNm = opticalThickness * filmThicknessScale;
         float deltaNm = opticalPathDifference(hNm, cosTheta, filmRefractiveIndex);
-        vec3 interferenceRGB = sampleThinFilmLUT(deltaNm, cosTheta);
+        vec3 interferenceRGB = sampleThinFilmLUT(hNm, cosTheta);
         vec3 reflectedDir = reflect(-viewDir, normal);
         vec3 envReflection = texture(skyboxTexture, reflectedDir).rgb;
         vec3 refractedDir = refract(-viewDir, normal, 1.0 / filmRefractiveIndex);
