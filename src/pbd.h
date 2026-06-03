@@ -26,6 +26,7 @@ public:
     void applyToMesh();
     void addImpulse(unsigned int particleIdx, const glm::vec3& velocity);
 
+    float m_time = 0.0f;
 private:
     Mesh* m_mesh;
     std::vector<PBDParticle> m_particles;

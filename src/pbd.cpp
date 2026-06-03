@@ -235,7 +235,44 @@ void PBDSolver::integrateThickness(float dt) {
 }
 
 void PBDSolver::step(float dt, int solverIterations, const glm::vec3& gravity, float damping) {
-    for (auto& p : m_particles) p.acceleration += gravity;
+    m_time += dt;
+
+    // 1. 비눗방울의 현재 무게중심 계산
+    glm::vec3 centerOfMass(0.0f);
+    for (const auto& p : m_particles) {
+        centerOfMass += p.position;
+    }
+    centerOfMass /= (float)m_particles.size();
+
+    // =======================================================
+    // 2. 부드러운 상하 부유(Hovering) 효과
+    // =======================================================
+    // 시간에 따라 Y축 기준 위아래로 아주 천천히(-0.1 ~ +0.1 범위) 움직입니다.
+    float hoverY = std::sin(m_time * 0.8f) * 0.01f;
+    glm::vec3 targetCenter(0.0f, hoverY, 0.0f);
+
+    // 좌우로 흔들리지 않도록 복원력 강도를 조금 올려서 목표 지점을 꽉 잡게 합니다.
+    float stiffness = 5.0f;
+    glm::vec3 restoreForce = (targetCenter - centerOfMass) * stiffness;
+
+    // =======================================================
+    // 3. 표면의 미세한 꿀렁임 (난기류)
+    // =======================================================
+    // 전체를 밀어내는 것이 아니라 표면만 미세하게 떨리도록 강도를 확 낮춥니다.
+    float windStrength = 0.02f;
+    for (auto& p : m_particles) {
+        // 공간 주파수(2.0f)를 높여서 파티클마다 받는 힘의 방향이 다르게(수축/팽창) 만듭니다.
+        // 시간 주파수(0.5f)는 낮춰서 천천히 일렁이게 합니다.
+        float windX = std::sin(p.position.y * 2.0f + m_time * 0.5f);
+        float windY = std::cos(p.position.z * 2.0f + m_time * 0.4f);
+        float windZ = std::cos(p.position.x * 2.0f + m_time * 0.6f);
+
+        glm::vec3 windForce = glm::vec3(windX, windY, windZ) * windStrength;
+
+        // 중력, 상하 복원력, 표면 난기류를 가속도에 누적
+        p.acceleration += gravity + windForce + restoreForce;
+    }
+
     integrate(dt, damping);
     solveConstraints(solverIterations);
     integrateThickness(dt);

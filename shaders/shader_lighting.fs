@@ -195,13 +195,33 @@ void main()
         float hNm = opticalThickness * filmThicknessScale;
         float deltaNm = opticalPathDifference(hNm, cosTheta, filmRefractiveIndex);
         vec3 interferenceRGB = sampleThinFilmLUT(hNm, cosTheta);
+
+        // -----------------------------------------------------
+        // 여기서부터 교체하세요 (기존의 reflectedDir, refractedDir 선언부 덮어쓰기)
+        // -----------------------------------------------------
+        vec3 offset = vec3(0.015, 0.0, 0.0); // 색수차 강도
+
         vec3 reflectedDir = reflect(-viewDir, normal);
-        vec3 envReflection = texture(skyboxTexture, reflectedDir).rgb;
+        vec3 envReflection;
+        envReflection.r = texture(skyboxTexture, normalize(reflectedDir + offset * 0.5)).r;
+        envReflection.g = texture(skyboxTexture, reflectedDir).g;
+        envReflection.b = texture(skyboxTexture, normalize(reflectedDir - offset * 0.5)).b;
+
         vec3 refractedDir = refract(-viewDir, normal, 1.0 / filmRefractiveIndex);
         if (length(refractedDir) < 1e-4) {
             refractedDir = reflectedDir;
         }
-        vec3 envRefraction = texture(skyboxTexture, refractedDir).rgb;
+        
+        vec3 envRefraction;
+        envRefraction.r = texture(skyboxTexture, normalize(refractedDir + offset)).r;
+        envRefraction.g = texture(skyboxTexture, refractedDir).g;
+        envRefraction.b = texture(skyboxTexture, normalize(refractedDir - offset)).b;
+        // -----------------------------------------------------
+        // 여기까지 교체 완료. 이 아래는 기존 vec3 halfDir = ... 로 이어지면 됩니다.
+        // -----------------------------------------------------
+
+
+
 
         vec3 halfDir = normalize(lightDir + viewDir);
         float NoL = clamp(dot(normal, lightDir), 0.0, 1.0);
