@@ -45,8 +45,8 @@ namespace {
 
 ThinFilmSimulator::ThinFilmSimulator()
     : m_mesh(NULL),
-      m_c2(18.0f),
-      m_damping(1.2f),
+      m_c2(0.0f),
+      m_damping(0.0f),
       m_minThickness(0.012f),
       m_maxThickness(0.095f),
       m_initialTotalThickness(0.0f)

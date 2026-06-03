@@ -255,7 +255,5 @@ void PBDSolver::addImpulse(unsigned int particleIdx, const glm::vec3& velocity) 
     if (particleIdx >= m_particles.size()) return;
 
     m_particles[particleIdx].prevPosition -= velocity * 0.001f;
-    m_particles[particleIdx*3].prevPosition += velocity * 0.001f;
-
     
 }

@@ -232,16 +232,34 @@ int main()
 
 
     // skybox
+	int skyboxType = 0; // 0: sea, 1: park
+
     std::vector<std::string> faces
     {
-        "../resources/park/right.jpg",
-        "../resources/park/left.jpg",
-        "../resources/park/top.jpg",
-        "../resources/park/bottom.jpg",
-        "../resources/park/front.jpg",
-        "../resources/park/back.jpg"
+        "../resources/skybox/right.jpg",
+        "../resources/skybox/left.jpg",
+        "../resources/skybox/top.jpg",
+        "../resources/skybox/bottom.jpg",
+        "../resources/skybox/front.jpg",
+        "../resources/skybox/back.jpg"
     };
+
+    if (skyboxType == 1) {
+        std::vector<std::string> faces
+        {
+            "../resources/sea/right.jpg",
+            "../resources/sea/left.jpg",
+            "../resources/sea/top.jpg",
+            "../resources/sea/bottom.jpg",
+            "../resources/sea/front.jpg",
+            "../resources/sea/back.jpg"
+        };
+    }
+
+
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     CubemapTexture skyboxTexture = CubemapTexture(faces);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
     ThinFilmLUTTexture thinFilmLUT(256, 128);
     unsigned int VAOskybox, VBOskybox;
     getPositionVAO(skybox_positions, sizeof(skybox_positions), VAOskybox, VBOskybox);
