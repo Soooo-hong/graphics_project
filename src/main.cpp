@@ -154,7 +154,7 @@ bool useLighting = true;
 bool usePCF = false;
 bool showWireframe = false;
 
-float pbdDamping = 0.0001f;
+float pbdDamping = 0.00001f;
 int pbdSolverIterations = 2;
 
 
@@ -234,12 +234,12 @@ int main()
     // skybox
     std::vector<std::string> faces
     {
-        "../resources/skybox/right.jpg",
-        "../resources/skybox/left.jpg",
-        "../resources/skybox/top.jpg",
-        "../resources/skybox/bottom.jpg",
-        "../resources/skybox/front.jpg",
-        "../resources/skybox/back.jpg"
+        "../resources/park/right.jpg",
+        "../resources/park/left.jpg",
+        "../resources/park/top.jpg",
+        "../resources/park/bottom.jpg",
+        "../resources/park/front.jpg",
+        "../resources/park/back.jpg"
     };
     CubemapTexture skyboxTexture = CubemapTexture(faces);
     ThinFilmLUTTexture thinFilmLUT(256, 128);

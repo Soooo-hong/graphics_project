@@ -91,7 +91,7 @@ void PBDSolver::integrate(float dt, float damping) {
 
 
 void PBDSolver::solveConstraints(int iterations) {
-    const float volumeCompliance = 1e-7f;
+    const float volumeCompliance = 1e-10f;
 
     // Jacobi 방식은 연결된 간선 수만큼 나누어지므로(보통 5~6개), 
     // 0.8 정도로 높게 주어야 적당히 출렁이는 유체 막 느낌이 납니다.
@@ -254,28 +254,8 @@ void PBDSolver::applyToMesh() {
 void PBDSolver::addImpulse(unsigned int particleIdx, const glm::vec3& velocity) {
     if (particleIdx >= m_particles.size()) return;
 
-    // 1. 충격의 중심점과 반경 설정 (구의 크기에 맞춰 조절)
-    glm::vec3 centerPos = m_particles[particleIdx].position;
-    float radius = 0.001f; // 충격을 받을 반경 (예: 구 반지름의 약 40%)
+    m_particles[particleIdx].prevPosition -= velocity * 0.001f;
+    m_particles[particleIdx*3].prevPosition += velocity * 0.001f;
 
-    // dt를 직접 받지 않으므로 임의의 시간 스케일 팩터(약 1/60초)를 적용
-    float impulseScale = 0.01f;
-
-    for (size_t i = 0; i < m_particles.size(); ++i) {
-        float dist = glm::length(m_particles[i].position - centerPos);
-
-        // 반경 내에 있는 정점들만 영향을 받음
-        if (dist < radius) {
-            // 2. 거리에 따른 부드러운 힘 감쇠 (Quad Falloff)
-            float t = 1.0f - (dist / radius);
-            float falloff = t * t; // 중심일수록 강하고 가장자리일수록 부드러움
-
-            // 3. PBD 방식의 속도 부여 (prevPosition을 뒤로 밀어 관성 생성)
-            // v = (pos - prevPos) 이므로, prevPos -= v 가 속도 증가를 의미함
-            m_particles[i].prevPosition -= velocity * falloff * impulseScale;
-
-            // 4. 두께(간섭 무늬) 파동의 진폭 폭발시키기
-            //m_particles[i].thicknessVelocity += 0.1f * falloff;
-        }
-    }
+    
 }
