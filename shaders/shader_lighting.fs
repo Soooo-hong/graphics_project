@@ -70,6 +70,64 @@ float schlickFresnel(float cosTheta, float r0)
     return r0 + (1.0 - r0) * pow(oneMinusCos, 5.0);
 }
 
+void fresnelCoefficients(float ni, float nt, float cosi,
+                         out float rs, out float rp, out float cost)
+{
+    float sin2i = max(0.0, 1.0 - cosi * cosi);
+    float ratio = ni / nt;
+    float sin2t = ratio * ratio * sin2i;
+
+    if (sin2t > 1.0) {
+        rs = 1.0;
+        rp = 1.0;
+        cost = 0.0;
+        return;
+    }
+
+    cost = sqrt(max(0.0, 1.0 - sin2t));
+
+    float denomS = max(1e-5, ni * cosi + nt * cost);
+    float denomP = max(1e-5, nt * cosi + ni * cost);
+    rs = (ni * cosi - nt * cost) / denomS;
+    rp = (nt * cosi - ni * cost) / denomP;
+}
+
+float thinFilmReflectance(float ni, float nt, float no,
+                          float cosi, float thicknessNm, float wavelengthNm)
+{
+    float filmIOR = nt + 0.004 * (550.0 - wavelengthNm) / 170.0;
+
+    float rs12, rp12, cos2;
+    fresnelCoefficients(ni, filmIOR, cosi, rs12, rp12, cos2);
+
+    float rs23, rp23, cos3;
+    fresnelCoefficients(filmIOR, no, cos2, rs23, rp23, cos3);
+
+    float wavelengthM = wavelengthNm * 1e-9;
+    float thicknessM = thicknessNm * 1e-9;
+    float phase = 4.0 * 3.14159265 * filmIOR * thicknessM * cos2 / max(wavelengthM, 1e-9);
+    float c = cos(phase);
+    float s = sin(phase);
+
+    float Rs = ((rs12 + rs23 * c) * (rs12 + rs23 * c) + (rs23 * s) * (rs23 * s)) /
+               max(((1.0 + rs12 * rs23 * c) * (1.0 + rs12 * rs23 * c) + (rs12 * rs23 * s) * (rs12 * rs23 * s)), 1e-5);
+
+    float Rp = ((rp12 + rp23 * c) * (rp12 + rp23 * c) + (rp23 * s) * (rp23 * s)) /
+               max(((1.0 + rp12 * rp23 * c) * (1.0 + rp12 * rp23 * c) + (rp12 * rp23 * s) * (rp12 * rp23 * s)), 1e-5);
+
+    return clamp(0.5 * (Rs + Rp), 0.0, 1.0);
+}
+
+vec3 thinFilmIridescenceColor(float cosi, float thicknessNm)
+{
+    vec3 wavelengths = vec3(650.0, 530.0, 460.0);
+    return vec3(
+        thinFilmReflectance(1.0, filmRefractiveIndex, 1.0, cosi, thicknessNm, wavelengths.r),
+        thinFilmReflectance(1.0, filmRefractiveIndex, 1.0, cosi, thicknessNm, wavelengths.g),
+        thinFilmReflectance(1.0, filmRefractiveIndex, 1.0, cosi, thicknessNm, wavelengths.b)
+    );
+}
+
 float distributionGGX(float NoH, float roughness)
 {
     float a = max(roughness * roughness, 0.001);
@@ -95,7 +153,7 @@ float opticalPathDifference(float h, float cosTheta, float n)
 
 vec3 sampleThinFilmLUT(float hNm, float cosTheta)
 {
-    // U ÁÂÇ¥¿¡ deltaNm ´ë½Å µÎ²²(hNm)¸¦ Á÷Á¢ »ç¿ëÇÕ´Ï´Ù.
+    // U ï¿½ï¿½Ç¥ï¿½ï¿½ deltaNm ï¿½ï¿½ï¿½ ï¿½Î²ï¿½(hNm)ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½Õ´Ï´ï¿½.
     vec2 uv = vec2(clamp(hNm / filmDeltaMax, 0.0, 1.0), clamp(cosTheta, 0.0, 1.0));
     vec3 lutColor = texture(thinFilmLUT, uv).rgb;
     return lutColor;
@@ -193,13 +251,12 @@ void main()
     if (debugThickness > 0.5f) {
         float opticalThickness = continuousFilmThickness(FilmThickness, normal, FragPos);
         float hNm = opticalThickness * filmThicknessScale;
-        float deltaNm = opticalPathDifference(hNm, cosTheta, filmRefractiveIndex);
-        vec3 interferenceRGB = sampleThinFilmLUT(hNm, cosTheta);
+        vec3 interferenceRGB = thinFilmIridescenceColor(cosTheta, hNm);
 
         // -----------------------------------------------------
-        // ¿©±â¼­ºÎÅÍ ±³Ã¼ÇÏ¼¼¿ä (±âÁ¸ÀÇ reflectedDir, refractedDir ¼±¾ðºÎ µ¤¾î¾²±â)
+        // ï¿½ï¿½ï¿½â¼­ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Ã¼ï¿½Ï¼ï¿½ï¿½ï¿½ (ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ reflectedDir, refractedDir ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½î¾²ï¿½ï¿½)
         // -----------------------------------------------------
-        vec3 offset = vec3(0.015, 0.0, 0.0); // »ö¼öÂ÷ °­µµ
+        vec3 offset = vec3(0.015, 0.0, 0.0); // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
 
         vec3 reflectedDir = reflect(-viewDir, normal);
         vec3 envReflection;
@@ -217,7 +274,7 @@ void main()
         envRefraction.g = texture(skyboxTexture, refractedDir).g;
         envRefraction.b = texture(skyboxTexture, normalize(refractedDir - offset)).b;
         // -----------------------------------------------------
-        // ¿©±â±îÁö ±³Ã¼ ¿Ï·á. ÀÌ ¾Æ·¡´Â ±âÁ¸ vec3 halfDir = ... ·Î ÀÌ¾îÁö¸é µË´Ï´Ù.
+        // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Ã¼ ï¿½Ï·ï¿½. ï¿½ï¿½ ï¿½Æ·ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ vec3 halfDir = ... ï¿½ï¿½ ï¿½Ì¾ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ë´Ï´ï¿½.
         // -----------------------------------------------------
 
 
@@ -235,14 +292,17 @@ void main()
         float cookTorranceSpecular = D * V * NoL;
 
         float viewFresnel = fresnel * filmFresnelStrength;
+        float thinFilmEnergy = clamp(dot(interferenceRGB, vec3(0.333333)), 0.0, 1.0);
         float localIridescence = clamp(cookTorranceSpecular * directionalFresnel * filmIridescenceStrength, 0.0, 3.0);
-        float envIridescence = viewFresnel * filmReflectionIntensity;
+        float envIridescence = max(viewFresnel, thinFilmEnergy) * filmReflectionIntensity;
 
-        vec3 transparentFilm = envRefraction * filmRefractionStrength * (1.0 - clamp(viewFresnel, 0.0, 0.85));
+        vec3 transmissionRGB = clamp(vec3(1.0) - interferenceRGB, 0.0, 1.0);
+        vec3 transparentFilm = envRefraction * transmissionRGB * filmRefractionStrength * (1.0 - clamp(viewFresnel, 0.0, 0.85));
         vec3 neutralReflection = envReflection * viewFresnel * 0.18;
         vec3 iridescentEnv = envReflection * interferenceRGB * envIridescence;
         vec3 iridescentLight = light.color * interferenceRGB * localIridescence;
-        result = transparentFilm + neutralReflection + iridescentEnv + iridescentLight;
+        vec3 multiBounceGlow = envReflection * interferenceRGB * thinFilmEnergy * 0.18;
+        result = transparentFilm + neutralReflection + iridescentEnv + iridescentLight + multiBounceGlow;
     } else {
         result = ambient + diffuse + specular;
     }

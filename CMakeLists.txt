@@ -3,7 +3,7 @@ cmake_policy(VERSION 3.10)
 project("PROJECT" C CXX)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/build)
-set(PROJECT_ORIGIN "../../")
+set(PROJECT_ORIGIN ${CMAKE_SOURCE_DIR})
 
 file(GLOB SOURCE
     "src/*.h"
@@ -11,7 +11,7 @@ file(GLOB SOURCE
 )
 
 
-set(SOURCE ${SOURCE} ../glad.c)
+set(SOURCE ${SOURCE} ${PROJECT_ORIGIN}/glad.c)
 set(NAME "main")
 
 
@@ -32,9 +32,9 @@ if(UNIX)
   include_directories(${GLFW_INCLUDE_DIRS})
   include_directories(${GLM_INCLUDE_DIRS})
   include_directories(${ASSIMP_INCLUDE_DIRS})
+  include_directories(${PROJECT_ORIGIN}/includes)
 endif(UNIX)
 
 list(APPEND CMAKE_CXX_FLAGS "-std=c++11")
 add_executable(${NAME} ${SOURCE})
 target_link_libraries(${NAME} ${LIBS})
-include_directories(${PROJECT_ORIGIN}/includes)
